@@ -1,0 +1,34 @@
+Rem Project: Dark Basic Pro Project
+Rem Created: Friday, August 10, 2012
+
+Rem ***** Main Source File *****
+    Global Const Decks As Byte = 8
+    global Const MaxPlayers As Byte = 4
+    global LastPlayer As Byte
+    global Dim CardImage(52 * Decks) As String
+    global Dim CardValue(52 * Decks) As Byte
+    global DealerHidden As Byte
+    global CardNo As Byte
+    global NewCardValue As Byte
+    global RoundsPlayed As Byte
+    global PlayerNo As Byte
+    global Dim PlayerNDrawn(MaxPlayers) As Byte
+    global Dim PlayerNTotal(MaxPlayers) As Byte
+    global Dim PlayerNCash(MaxPlayers) as Float
+    global Dim PlayerNBetEntery(MaxPlayers) as Float
+    global Dim PlayerNBet(MaxPlayers) as Float
+    global Dim PlayerNSplit(MaxPlayers) As Byte
+    global Dim PlayerNAces(MaxPlayers) As Byte
+    global Dim PlayerNCards(MaxPlayers, 16) As Byte
+    global Dim PlayerSplitTotal(MaxPlayers) As Byte
+    global DoubleDownSet As Byte
+    global SplitSet As Byte
+    global BonusAny777 As Boolean
+    global BonusSuit777 As Boolean
+    global BonusAny678 As Boolean
+    global BonusSuit678 As Boolean
+    global Dealer17TieWins As Boolean
+    global FiveCardCharlieWins As Boolean
+    global Dim PlayerNWins(MaxPlayers) As Byte
+    global TotalCards As Byte
+    global DeckSize As Byte

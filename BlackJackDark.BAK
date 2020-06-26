@@ -1,0 +1,1724 @@
+Rem Project: Black Jack in the Dark.     Dark Basic Version
+Rem Created: Friday, August 10, 2012
+Rem ***** Main Source File *****
+
+Global Number_Of_Decks  as Byte
+Global Const MaxPlayers As Byte = 4
+Global Const True As Byte = 1
+Global Const False As Byte = 0
+Global LastPlayer As Byte
+Global Dim CardImage(56 * 10) As Word
+Global CardBackImage as Integer
+Global Dim BJCardValue(56 * 10) As Byte
+Global Dim PKCardValue(56 * 10) As Byte
+Global Dim CardSuitValue(56 * 10) As Byte
+Global Dim CardOrder(56 * 10) as Integer
+Global Dim CardImg(60) as Word
+Global Dim MODE_RES_X(64) as Integer
+Global Dim MODE_RES_Y(64) as Integer
+Global Dim MODE_BITDEPTH(64) as Integer
+Global DispPlayerSpacing as Integer
+Global DispPlayerLeft as Integer
+Global DispPlayerTop as Integer
+Global DispPlayerVertical as Integer
+Global Selected_BitDepth as Integer
+Global Selected_Res_X as Integer
+Global Selected_Res_Y as Integer
+global DealerHidden As Integer
+Global CardNo As integer
+Global ReShuffleNo As integer
+Global NewCardValue As Byte
+Global RoundsPlayed As Byte
+Global PlayerNo As Integer
+Global GoNextPlayer as Boolean
+Global AllowSplit as Boolean
+Global ExitGame as Boolean
+Global Dim PlayerNName(MaxPlayers) As String
+Global Dim PlayerNDrawn(MaxPlayers) As Integer
+Global Dim PlayerNTotal(MaxPlayers,3) As Byte
+Global Dim PlayerNCash(MaxPlayers) as Float
+Global Dim PlayerNBetEntery(MaxPlayers) as Float
+Global Dim PlayerNBet(MaxPlayers) as Float
+Global Dim PlayerNSplit(MaxPlayers) As Byte
+Global Dim PlayerNAces(MaxPlayers) As Byte
+Global Dim PlayerBJCardVal(MaxPlayers, 20) As Word
+Global Dim PlayerPKCardVal(MaxPlayers, 20) As Word
+Global Dim PlayerSUCardVal(MaxPlayers, 20) As Byte
+Global Dim PlayerNSplitCard(MaxPlayers, 20) As Word
+Global Dim PlayerNDoubleUsed(MaxPlayers) As Byte
+Global Dim PlayerNMessage(MaxPlayers) As String
+Global DoubleDownSet As Byte
+Global DoubleDown3Up As Boolean
+Global SplitSet As Byte
+Global Bonus777 As Boolean
+Global Bonus678 As Boolean
+Global Dealer17TieWins As Boolean
+Global DealerSoft17Hit As Boolean // If Dealer has One Ace
+Global DealerNoHidden As Boolean
+Global CardCharlieWinSet As Word
+Global AllowSurrender As Boolean // Player Gets Back Half Bet
+Global Suit21Bonus As Boolean
+Global Color21Bonus As Boolean
+Global SuitedAJBonus as Boolean // Ace + Jack Pay in same suit 2:1
+Global JokerBetReturn as Boolean 
+Global JokerSpecialAce as Boolean
+Global JokersPresant as Integer
+Global Dim PlayerNWins(MaxPlayers) As Byte
+Global TotalCards As Integer
+Global DeckSize As Integer
+Global SuitSize As Integer
+Global ss as Integer   
+Global End_Program as Boolean
+
+End_Program = False
+Repeat
+    Init_Defaults()
+    DoSettings()
+    If End_Program = False
+        Init_Game()
+        ShowStats()
+        show All Sprites
+        ShuffleDecks()    
+        ExitGame = False
+        Repeat
+            GetBets()
+            If ExitGame = False
+                PlayerNo = 0
+                Show All Sprites
+                DoDeal()
+                If PlayerNo <= LastPlayer
+                    Repeat
+                        DoPlayerInput()
+                        If PlayerNSplit(PlayerNo) = 2 
+                            DoNextHand()                        
+                        Else
+                            PlayerNo = PlayerNo + 1
+                        Endif
+                    Until PlayerNo >LastPlayer    
+                Endif
+                PlayerNo =0 
+                DoDealer()
+                DoRewards()
+                Repeat
+                    ShowStats()
+                       if upper$(inkey$()) = "S" and ssok=0
+                               get image 999,0,0,selected_res_x,selected_res_y,3
+                               f$="imgblackjack" + (str$(int(ss/10))) + (str$(ss mod 10)) + ".bmp"
+                               save image f$,999
+                               ss=ss+1
+                               if ss>9 then ss=0
+                        endif 
+                Until Inkey$() = " " or mouseclick()>=1
+                Show All Sprites
+                For i = 0 To CardNo 
+                    j = CardOrder(i) 
+                    Sprite j+1, -200, -200, CardImage(j)
+                Next i
+                If CardNo >= ReShuffleNo then ShuffleDecks()
+            Endif
+        Until ExitGame = True
+    Endif
+Until End_Program = True
+
+End
+
+Function Init_Game()
+        Local N As Integer
+        Local Q as Integer
+        Local V As Byte
+        Local Deck As Byte
+        Local CardPlace As Integer
+        local ImageGet as Integer
+        Local LastCard as Integer
+        local FileNumberString$ as String        
+        set window off
+        set display mode Selected_Res_X, Selected_Res_Y, Selected_BitDepth
+        Color BackDrop RGB(16,64,16)
+        If Selected_Res_Y > 300 and Selected_Res_Y < 621
+            DispPlayerTop = 244
+            DispPlayerVertical = 27
+        Endif
+        If Selected_Res_Y > 620 and Selected_Res_Y < 780 
+            DispPlayerTop = 248
+            DispPlayerVertical = 28
+        Endif
+        If Selected_Res_Y >= 779 and Selected_Res_Y < 1000 
+            DispPlayerTop = 280
+            DispPlayerVertical = 30
+        Endif
+        If Selected_Res_Y > 999
+            DispPlayerTop = 320
+            DispPlayerVertical = 32
+        Endif
+        If LastPlayer = 1 
+            DispPlayerSpacing = 250
+            DispPlayerLeft = 150
+        Else            
+            If LastPlayer >= 4 
+                DispPlayerSpacing = (Selected_Res_X - 120) / LastPlayer
+                DispPlayerLeft = 50
+             Else
+                DispPlayerSpacing = (Selected_Res_X - 160) / LastPlayer
+                DispPlayerLeft = 75
+             Endif            
+             If DispPlayerSpacing <= 270
+                DispPlayerSpacing = 270
+                DispPlayerLeft = 25
+             Endif
+        Endif 
+        
+        AutoCam Off
+        Randomize -Timer()
+        Select DeckSize
+            Case 56
+                LastCard = 55
+                SuitSize = 13
+            EndCase
+            Case 52
+                LastCard = 51            
+                SuitSize = 13
+            EndCase
+            Case 48
+                LastCard = 47
+                SuitSize = 12
+            EndCase
+        EndSelect
+        TotalCards = DeckSize * Number_of_Decks - 1        
+        ReShuffleNo = TotalCards - 22
+        If LastPlayer >= 4 and NumberOfDecks >=6 then ReShuffleNo = TotalCards - 28
+        For CardPlace = 1 To 64
+            FileNumberString$ = Right$("0" + str$(CardPlace),2)
+            If DeckSize = 52 or DeckSize = 56 or (CardPlace Mod 13) <> 10
+                load image "Card" + FileNumberString$ + ".BMP", CardPlace                                 
+            Endif
+        Next CardPlace        
+        CardNo = 0 
+        ImageGet = 1
+        For CardPlace = 0 To LastCard
+            If (CardPlace Mod SuitSize) = 0 then Restore BlackJackValues            
+            Read V
+            if CardPlace >=53 then V = 11
+            BJCardValue(CardPlace) = V
+            CardSuitValue(CardPlace) = 1 + int(CardPlace / SuitSize)
+            CardImage(CardNo) = ImageGet
+//            paste image CardImage(CardNo), ((CardNo) mod SuitSize) * 72,int((CardNo) / SuitSize) * 112
+            // print CardImage(CardNo)
+            Sprite CardNo + 1, 0, 0, CardImage(CardNo)
+            OffSet Sprite CardNo + 1, 35.5, 48
+            //OffSet Sprite CardNo + 1, 25.5, 36
+            CardNo = CardNo + 1
+            ImageGet = ImageGet + 1 
+            If DeckSize = 48 and (CardPlace Mod SuitSize) = 8
+                 Read V
+                 ImageGet = ImageGet + 1
+            endif
+        Next CardPlace
+        For CardPlace = 0 To LastCard
+            If (CardPlace Mod SuitSize) = 0 then Restore PokerValues
+            Read V                
+            if DeckSize = 56 and CardPlace >= 53 then V = 11
+            If DeckSize = 52 and V >  11 then V = V - 1
+            If DeckSize = 48 and V >  9 then V = V - 2            
+            PKCardValue(CardPlace) = V
+             set cursor ((CardPlace) mod SuitSize) * 72 + 20,int((CardPlace) / SuitSize) * 112 + 98
+             // print v            
+        Next CardPlace            
+        CardNo = DeckSize
+        JokersPresant = 0
+        For Deck = 1 To Number_of_Decks
+            For CardPlace = 0 To LastCard
+                BJCardValue(CardNo) = BJCardValue(CardPlace)
+                PKCardValue(CardNo) = PKCardValue(CardPlace)
+                CardImage(CardNo) = CardImage(CardPlace)
+                CardSuitValue(CardNo) = CardSuitValue(CardPlace)
+                Sprite CardNo + 1, -200, -200, CardImage(CardNo)
+                OffSet Sprite CardNo + 1, 35.5, 48                                        
+                //OffSet Sprite CardNo + 1, 27.5, 40
+                // OffSet Sprite CardNo + 1, 25.5, 36
+                CardNo = CardNo + 1
+            Next CardPlace
+        Next Deck
+        For N = 0 to TotalCards + JokersPresant
+            Sprite N + 1, -200, -200, CardImage(N)                        
+        Next N
+        Hide All Sprites
+        if DeckSize = 56 then SuitSize = 14
+        BackDrop Off
+        For N = 1 To MaxPlayers
+            PlayerNCash(N) = 5000
+            PlayerNBet(N) = 0
+        Next N
+BlackJackValues:
+        Data 11,2,3,4,5,6,7,8,9,10,10,10,10,11
+PokerValues:
+        Data 15,2,3,4,5,6,7,8,9,10,12,13,14,11
+EndFunction
+
+Function CalcTotal()
+    Local Total As Integer
+    Local Aces As Integer
+    Local i As Integer
+    Local j As Integer
+    Local k As Integer
+    Local l As Integer
+    Local m As Integer
+    local e As Integer
+    Local f As Integer
+    Local g as Integer
+    f = 0
+    Total = 0
+    Aces = 0
+    PlayerNAces(PlayerNo) = 0
+    If PlayerNSplit(PlayerNo) <= 2
+        f = 0
+    Endif
+    If PlayerNSplit(PlayerNo) = 3
+        f = 7
+    Endif
+    If PlayerNSplit(PlayerNo) = 4
+        f = 14
+    Endif
+    For i = f To PlayerNDrawn(PlayerNo) - 1
+        Total = Total + PlayerBJCardVal(PlayerNo, i)
+        If PlayerBJCardVal(PlayerNo, i) = 11 
+            Aces = Aces + 1
+            PlayerNAces(PlayerNo) = PlayerNAces(PlayerNo) + 1
+         Endif
+    Next i
+    // Check if there are any aces when a total is more than 21, if so, subract 10 until no more aces or less than 22.
+    If Aces > 0
+        For i = 0 to Aces - 1 
+            If Total > 21 Then Total = Total - 10
+        Next i
+    Endif
+    If PlayerNSplit(PlayerNo) <= 2 
+        PlayerNTotal(PlayerNo,0) = Total
+    Endif
+    If PlayerNSplit(PlayerNo) = 3         
+        PlayerNTotal(PlayerNo,1) = Total
+    Endif
+Endfunction
+
+Function DoDeal()
+    Local N As Integer
+    Local PlayerNumber As Integer
+    Local e As Integer
+    Local f As Integer
+    Local g as Integer
+    local h as Integer
+    local UseImage as Integer
+    local CardSpacing As Integer 
+    CardSpacing = 16
+    RoundsPlayed = RoundsPlayed + 1
+    CLS
+    ShowStats()
+    If PlayerNSplit(PlayerNo) >= 2 then CardSpacing = 14
+    For PlayerNumber = 0 To LastPlayer
+        For N = 0 To 20
+            PlayerBJCardVal(PlayerNumber, N) = 0
+            PlayerPKCardVal(PlayerNumber, N) = 0
+        Next N
+        PlayerNo = PlayerNumber
+        PlayerNMessage(PlayerNo) = ""
+        PlayerNSplit(PlayerNo) = 0
+        PlayerNTotal(PlayerNo,0) = 0
+        PlayerNTotal(PlayerNo,1) = 0
+        PlayerNTotal(PlayerNo,2) = 0
+        PlayerNTotal(PlayerNo,3) = 0
+        PlayerNAces(PlayerNo) = 0
+        PlayerNDoubleUsed(PlayerNo) = 0
+        PlayerNSplitCard(PlayerNo) = 0
+         For N = 0 To 1
+             If PlayerNo = 0 
+                 g = Selected_Res_X * .52 + 4 + 16 * n                 
+                 if Selected_Res_Y < 640 
+                    h = 58 + 10 * N
+                 else
+                    h = 64 + 12 * N
+                 endif
+                 If N = 1
+                    UseImage = CardBackImage 
+                    DealerHidden = CardNo
+                 Else
+                    UseImage = CardImage(CardOrder(CardNo))
+                 Endif
+             Else                 
+                 g = DispPlayerLeft + (PlayerNumber - 1) * DispPlayerSpacing + 10 + CardSpacing * n
+                 h = DispPlayerTop + DispPlayerVertical * 0 + 12 * n
+                 if Selected_Res_Y < 640 then h = DispPlayerTop + DispPlayerVertical * 0 + 10 * n
+                 UseImage = CardImage(CardOrder(CardNo))
+             Endif
+             AnimateHit(CardOrder(CardNo), g, h, UseImage)
+             NewCardValue = BJCardValue(CardOrder(CardNo))
+             PlayerBJCardVal(PlayerNo, N) = NewCardValue
+             PlayerPKCardVal(PlayerNo, N) = PKCardValue(CardOrder(CardNo))
+             PlayerSUCardVal(PlayerNo, N) = CardSuitValue(CardOrder(CardNo))
+             If PlayerNo > 0              
+                IF N = 0 
+                    Select SplitSet
+                        Case 0 // Can Split Either Ten, Jack, Queen, or King)
+                            f = BJCardValue(CardOrder(CardNo))
+                        EndCase
+                        Case 1 // Split Exact Pair (2 Tens, Jacks, Queens, or King)
+                            f = PKCardValue(CardOrder(CardNo))
+                        EndCase                        
+                        Case 2 // No Split Aces and Exact Pair
+                            if BJCardValue(CardNo) < 11 
+                                f = PKCardValue(CardOrder(CardNo))
+                            else
+                                f = 255
+                            endif
+                        EndCase
+                    EndSelect
+                 Endif
+                 If N = 1 
+                    Select SplitSet     
+                        Case 0 // Can Split Either Ten, Jack, Queen, or King)
+                            e = BJCardValue(CardOrder(CardNo))
+                        EndCase
+                        Case 1 // Split Exact Pair (2 Tens, Jacks, Queens, or King)
+                            e = PKCardValue(CardOrder(CardNo))
+                        EndCase                        
+                        Case 2 // No Split Aces and Exact Pair
+                            if BJCardValue(CardNo) < 11 
+                                e = PKCardValue(CardOrder(CardNo))
+                            else
+                                e = 254 // 255 will not equal 254
+                            endif
+                        EndCase
+                     EndSelect
+                     If e = f 
+                        PlayerNSplit(PlayerNo) = 1
+                        PlayerNSplitCard(PlayerNo) = CardOrder(CardNo)
+                     Endif
+                 Endif
+             Endif
+             CardNo = CardNo + 1
+        Next N
+        PlayerNDrawn(PlayerNo) = 2
+        If PlayerNo = 0 
+             CalcTotal()
+        Else
+             CalcTotal()        
+             If PlayerNTotal(PlayerNo,0) = 21 
+               PlayerNMessage(PlayerNo) = "TOTAL : 21  BLACKJACK"               
+             Else
+                PlayerNMessage(PlayerNo) = "TOTAL:" + Str$(PlayerNTotal(PlayerNo,0))
+             Endif
+             ShowStats()
+        Endif
+    Next PlayerNumber
+    PlayerNo = 1
+    If PlayerNTotal(1,0) = 21 
+        PlayerNo = 2
+        If PlayerNTotal(2,0) = 21 
+            PlayerNo = 3
+            If PlayerNTotal(3,0) = 21 
+                PlayerNo = 4
+                If PlayerNTotal(4,0) = 21 then PlayerNo = MaxPlayers + 1
+            Endif
+        Endif
+    Endif
+    If PlayerNTotal(0,0) = 21 
+        If PlayerBJCardVal(0,0) = 11 then PlayerNo = MaxPlayers + 1
+    Endif
+Endfunction
+
+Function AnimateHit(CardNoIn, CardDestX , CardDestY, ImageNoIn)
+   Local CardPosX As Float
+   Local CardPosY As Float
+   Local CardDir as Float
+   Local CardDist as Float
+   Local CardRotStep As Float
+   Local CardRotCurr As Float
+   Local N as Integer 
+   Local DN as Integer
+   CardPosX = Selected_Res_X / 2
+   CardPosY = -24
+   CardDir = AtanFull(CardDestX-CardPosX,CardDestY-CardPosY)
+   CardDist = Sqrt((CardPosX-CardDestX)^2 + (CardPosY-CardDestY)^2)
+   CardRotStep = 360 / (CardDist * .03125)
+   N = int(CardDist / 32) - 1
+   Set Sprite Priority CardNoIn+1, CardNo
+   Repeat
+       Sprite CardNoIn+1, CardPosX, CardPosY, ImageNoIn
+       Rotate Sprite CardNoIn+1, CardRotCurr 
+       ShowStats()
+       CardPosX = CardPosX + Sin(CardDir) * 32
+       CardPosY = CardPosY + Cos(CardDir) * 32
+       CardRotCurr =  CardRotCurr  + CardRotStep
+       N = N - 1
+   Until N<=0
+   Sprite CardNoIn+1, CardDestX, CardDestY, ImageNoIn
+   Rotate Sprite CardNoIn+1, 0
+Endfunction
+
+Function DoPlayerInput()
+    Local KeyPressed$ = ""
+    Local KeyUp as Boolean = True
+    local MX# as Integer
+    local MY# as Integer
+    Local DN as Integer
+    GoNextPlayer = False
+    PlayerNDoubleUsed(PlayerNo) = 0
+    CLS
+    Repeat         
+        ShowStats()
+        mx#=mousex()
+        my#=mousey()
+        If PlayerNCash(PlayerNo) < PlayerNBet(PlayerNo) then PlayerNDoubleUsed(PlayerNo) = 1
+        If DoubleDownSet = 1 and (PlayerNTotal(PlayerNo,0) <=9 or PlayerNTotal(PlayerNo,0)>=12) Then PlayerNDoubleUsed(PlayerNo) = 1
+        If DoubleDownSet = 2 and (PlayerNTotal(PlayerNo,0) <=8 or PlayerNTotal(PlayerNo,0)>=12) Then PlayerNDoubleUsed(PlayerNo) = 1
+        If (PlayerNTotal(PlayerNo,0) < 21 or (PlayerNSplit(PlayerNo) = 3) and PlayerNTotal(PlayerNo,1) <21)
+            ShowCommands()             
+            If Inkey$()<>"" or mouseclick() >= 1
+                KeyUp = False
+                KeyPressed$ = Upper$(Inkey$())
+                DN = -2
+                if mouseclick() >= 1  then DN = PlayerNo - 1    
+                If MX# > DispPlayerLeft + SplitExtraLeft  + 5 + DispPlayerSpacing * DN and MY# > DispPlayerTop + DispPlayerVertical * 10 - 1 and MX# < DispPlayerLeft + SplitExtraLeft  + 105 + DispPlayerSpacing * DN and MY# < DispPlayerTop + DispPlayerVertical * 10 + 21 then KeyPressed$ = "H"
+                If MX# > DispPlayerLeft + SplitExtraLeft  + 118 + DispPlayerSpacing * DN and MY# > DispPlayerTop + DispPlayerVertical * 10 - 1 and MX# < DispPlayerLeft + SplitExtraLeft  + 217 + DispPlayerSpacing * DN and MY# < DispPlayerTop + DispPlayerVertical * 10 + 21 then KeyPressed$ = "S"
+                If MX# > DispPlayerLeft + SplitExtraLeft  + 5 + DispPlayerSpacing * DN and MY# > DispPlayerTop + DispPlayerVertical * 11 - 1 and MX# < DispPlayerLeft + SplitExtraLeft  + 105 + DispPlayerSpacing * DN and MY# < DispPlayerTop + DispPlayerVertical * 11 + 21 then  KeyPressed$ = "D" 
+                If PlayerNSplit(PlayerNo) = 1 and PlayerNDrawn(PlayerNo) <= 2
+                    If MX# > DispPlayerLeft + SplitExtraLeft  + 118 + DispPlayerSpacing * DN and MY# > DispPlayerTop + DispPlayerVertical * 11 - 1 and MX# < DispPlayerLeft + SplitExtraLeft  + 217 + DispPlayerSpacing * DN and MY# < DispPlayerTop + DispPlayerVertical * 11 + 21 then KeyPressed$ = "T" 
+                Endif    
+                If AllowSurrender = True and PlayerNDrawn(PlayerNo) = 2 and PlayerNSplit(PlayerNo) <= 1
+                    If MX# > DispPlayerLeft + SplitExtraLeft  + 5 + DispPlayerSpacing * DN and MY# > DispPlayerTop + DispPlayerVertical * 12 - 1 and MX# < DispPlayerLeft + SplitExtraLeft  + 139 + DispPlayerSpacing * DN and MY# < DispPlayerTop + DispPlayerVertical * 12 + 21 then KeyPressed$ = "U" 
+                Endif
+            Else
+                If Inkey$() = "" and KeyUp = False and Mouseclick() = 0
+                    
+                    
+                    KeyUp = True
+                    If KeyPressed$ = "H" 
+                        DoHit()
+                        If PlayerNDrawn(PlayerNo) >=3 and DoubleDown3Up = False then PlayerNDoubleUsed(PlayerNo) = 1
+                        If PlayerNDrawn(PlayerNo) >=4 and DoubleDown3Up = True then PlayerNDoubleUsed(PlayerNo) = 1
+                    Endif
+                    If KeyPressed$ = "S" 
+                        GoNextPlayer = True
+                        If PlayerNSplit(PlayerNo) <= 1 
+                            PlayerNMessage(PlayerNo) = "TOTAL:" + Str$(PlayerNTotal(PlayerNo,0)) + "  STANDING"                
+                        Endif
+                        If PlayerNSplit(PlayerNo) = 2                             
+                            PlayerNMessage(PlayerNo) = "T:" + Str$(PlayerNTotal(PlayerNo,0)) + " STAND|T:" + str$(PlayerNTotal(PlayerNo,1))
+                        Endif
+                        If PlayerNSplit(PlayerNo) = 3
+                            PlayerNMessage(PlayerNo) = "T:" + Str$(PlayerNTotal(PlayerNo,0)) + "|T:" + str$(PlayerNTotal(PlayerNo,1)) + " STAND"
+                        Endif
+                    Endif
+                    If KeyPressed$ = "D" and PlayerNDoubleUsed(PlayerNo) = 0
+                        PlayerNBet(PlayerNo) = PlayerNBet(PlayerNo) * 2
+                        DoHit()
+                        GoNextPlayer = True
+                        PlayerNDoubleUsed(PlayerNo) = 1
+                    Endif
+                    If KeyPressed$ = "T" and PlayerNSplit(PlayerNo) <= 1 
+                        DoSplitDeal()
+                    Endif
+                    If KeyPressed$ = "U" and AllowSurrender = True and PlayerNDrawn(PlayerNo) = 2 and PlayerNSplit(PlayerNo) <= 1 
+                        PlayerNDrawn(PlayerNo) = - PlayerNDrawn(PlayerNo)                
+                        PlayerNMessage(PlayerNo) = "SURRENDERED"
+                        GoNextPlayer = True
+                    Endif
+                    If KeyPressed$ = "Q" 
+                        GoNextPlayer = True
+                    Endif
+                    KeyPressed$ = ""
+                 Endif
+             Endif 
+          Else
+             GoNextPlayer = True
+          Endif
+    Until GoNextPlayer = True
+Endfunction
+
+Function DoDealer()
+    Local g As Integer
+    Local h As Integer
+    Local i As Integer
+    Local j As Integer
+    Local k As Integer
+    Local l As Integer
+    Local m As Integer
+    Local Z as Float
+    Z = 100
+    g = Selected_Res_X * .52 + 4 + 16 
+    Repeat
+        Z = Z - 2
+        Stretch Sprite CardOrder(DealerHidden)+ 1,Z, 100        
+    Until Z<=2
+    if Selected_Res_Y < 640
+        h = 58 + 10
+    else
+        h = 64 + 12 
+    Endif
+    Sprite CardOrder(DealerHidden)+ 1, g, h, CardImage(CardOrder(DealerHidden))
+    Repeat
+        Z = Z + 2
+        Stretch Sprite CardOrder(DealerHidden)+ 1,Z, 100        
+    Until Z>=100
+    CalcTotal()
+    PlayerNo = 0
+    If PlayerNTotal(0,0) < 21 
+        Repeat 
+            if DealerSoft17Hit = False     
+                If PlayerNTotal(0,0) <= 16 Then DoHit() 
+            Else
+                If PlayerNTotal(0,0) <= 16 Then DoHit() 
+                CalcTotal()
+                If PlayerNTotal(0,0) = 17 and PlayerNAces(0) > 0 Then DoHit()
+                CalcTotal()
+            Endif                
+        Until PlayerNTotal(0,0) >= 17
+        IF PlayerNTotal(0,0) <=21 
+            PlayerNMessage(0) = "TOTAL:" + Str$(PlayerNTotal(0,0)) + "   STANDING"
+        ELSE
+            PlayerNMessage(0) = "TOTAL:" + Str$(PlayerNTotal(0,0)) + "   BUSTED"
+        ENDIF        
+    Else:If PlayerNDrawn(0) = 2 And PlayerNTotal(0,0) = 21  
+        PlayerNMessage(0) = "TOTAL:" + Str$(PlayerNTotal(0,0)) + "  BLACKJACK"
+    Endif:Endif
+    ShowStats()
+Endfunction
+
+Function DoHit()
+    Local g as Integer
+    local h as Integer
+    Local N as Integer
+    local CardSpacing As Integer 
+    CardSpacing = 16    
+    PlayerNumber = PlayerNo
+    N = PlayerNDrawn(PlayerNumber)
+    If PlayerNumber = 0 
+         N = PlayerNDrawn(0)
+         g = Selected_Res_X * .52 + 4 + 16 * n                  
+         if Selected_Res_Y < 640
+            h = 58 + 10 * n
+         else
+            h = 64 + 12 * n
+         endif
+         UseImage = CardImage(CardOrder(CardNo))
+    Else                 
+         If PlayerNSplit(PlayerNo) >= 2 then CardSpacing = 14
+         If PlayerNSplit(PlayerNo) < 3 
+            g = DispPlayerLeft + (PlayerNo - 1) * DispPlayerSpacing + 10 + CardSpacing * n
+            h = DispPlayerTop + DispPlayerVertical * 0 + 12 * n
+            if Selected_Res_Y < 640 then h = DispPlayerTop + DispPlayerVertical * 0 + 10 * n
+         Else:If PlayerNSplit(PlayerNo) = 3 
+            N = PlayerNDrawn(PlayerNumber) - 7
+            g = DispPlayerLeft + (PlayerNo - 1) * DispPlayerSpacing + 78 + Int(DispPlayerSpacing * .11) + CardSpacing * n
+            h = DispPlayerTop + DispPlayerVertical * 0 + 12 * n
+            if Selected_Res_Y < 640 then h = DispPlayerTop + DispPlayerVertical * 0 + 10 * n
+         Endif:Endif         
+         UseImage = CardImage(CardOrder(CardNo))
+    Endif
+    AnimateHit(CardOrder(CardNo), g, h, UseImage)
+    NewCardValue = BJCardValue(CardOrder(CardNo))
+    PlayerBJCardVal(PlayerNo, PlayerNDrawn(PlayerNo)) = NewCardValue
+    PlayerPKCardVal(PlayerNo, PlayerNDrawn(PlayerNo)) = PKCardValue(CardOrder(CardNo))
+    PlayerSUCardVal(PlayerNo, PlayerNDrawn(PlayerNo)) = CardSuitValue(CardOrder(CardNo))
+    CardNo = CardNo + 1
+    PlayerNDrawn(PlayerNo) = PlayerNDrawn(PlayerNo) + 1
+    CalcTotal()
+    If PlayerNSplit(PlayerNo) <> 3 
+        // blackjackform.PlayerTotalShow(PlayerNo).Text = CStr(PlayerNTotal(PlayerNo,0))
+    Else
+        // blackjackform.PlayerTotalShow(PlayerNo).Text = PlayerNTotal(PlayerNo,1) & "|T:" & PlayerNTotal(PlayerNo,0)
+    Endif
+    If PlayerNTotal(PlayerNo,0) >= 22 
+        If PlayerNSplit(PlayerNo) < 2 
+            PlayerNMessage(PlayerNo) = "TOTAL:" + Str$(PlayerNTotal(PlayerNo,0)) + "  BUSTED"
+            GoNextPlayer = True
+        Endif
+        If PlayerNSplit(PlayerNo) >= 2 and PlayerNTotal(PlayerNo,1) < 22
+            PlayerNMessage(PlayerNo) = "T:" + Str$(PlayerNTotal(PlayerNo,0)) + " BUST|T:"  + STR$(PlayerNTotal(PlayerNo,1))       
+            If PlayerNSplit(PlayerNo) = 2 then GoNextPlayer = True
+        Endif
+        If PlayerNSplit(PlayerNo) = 3 and PlayerNTotal(PlayerNo,1) >= 22
+            PlayerNMessage(PlayerNo) = "T:" + Str$(PlayerNTotal(PlayerNo,0)) + "|T:"  + STR$(PlayerNTotal(PlayerNo,1)) + " BUST"
+        Endif
+    Else
+        If PlayerNSplit(PlayerNo) < 2 
+            PlayerNMessage(PlayerNo) = "TOTAL:" + Str$(PlayerNTotal(PlayerNo,0))
+        Else
+            PlayerNMessage(PlayerNo) = "T:" + Str$(PlayerNTotal(PlayerNo,0)) + "|T:"  + STR$(PlayerNTotal(PlayerNo,1))
+        Endif
+        If (PlayerNDrawn(PlayerNo) = 6 or PlayerNDrawn(PlayerNo) = 13) and CardCharlieWinSet = 6
+            If PlayerNSplit(PlayerNo) < 2 
+                PlayerNMessage(PlayerNo) = "TOTAL:" + Str$(PlayerNTotal(PlayerNo,0)) + " Six Card Charlie"
+            Else
+                PlayerNMessage(PlayerNo) = "T:" + Str$(PlayerNTotal(PlayerNo,0)) + " C6|T:"  + STR$(PlayerNTotal(PlayerNo,1))
+            Endif
+            GoNextPlayer = True
+        Endif
+        If (PlayerNDrawn(PlayerNo) = 5 or PlayerNDrawn(PlayerNo) = 12) and CardCharlieWinSet = 5
+            If PlayerNSplit(PlayerNo) < 2 
+                PlayerNMessage(PlayerNo) = "TOTAL:" + Str$(PlayerNTotal(PlayerNo,0)) + " Five Card Charlie"
+            Else
+                PlayerNMessage(PlayerNo) = "T:" + Str$(PlayerNTotal(PlayerNo,0)) + " C5|T:"  + STR$(PlayerNTotal(PlayerNo,1))
+            Endif
+            GoNextPlayer = True
+        Endif
+    Endif
+Endfunction
+
+Function DoRewards()
+    Local SplitReward As Integer
+    Local PlayerNumber As Integer
+    Local BonusReward As Boolean = False
+    Local C as Integer
+    Local SplitBase as Integer
+    Local Dim HandReward(3) as Integer
+    Local HandNumber as Integer
+    Local HandTotal as Integer
+    SplitReward = 0
+    For PlayerNumber = 1 To LastPlayer
+        PlayerNo = PlayerNumber
+        HandNumber = 0
+        SplitBase = 0
+        Repeat
+            If PlayerNDrawn(PlayerNo) >= 2
+                PlayerNDrawn(PlayerNo) = 0
+                HandReward(HandNumber) = 0
+                For C = 0 to 6
+                    If PlayerBJCardVal(PlayerNo, SplitBase + C) > 0 then PlayerNDrawn(PlayerNo) = PlayerNDrawn(PlayerNo) + 1
+                Next C
+                If HandNumber = 0 then HandTotal = PlayerNTotal(PlayerNo,0)
+                If HandNumber = 1 then HandTotal = PlayerNTotal(PlayerNo,1)
+                If HandNumber = 2 then HandTotal = PlayerNTotal(PlayerNo,2)
+            Endif
+            If HandTotal = 21 
+                If PlayerNDrawn(PlayerNo) = 2 
+                    C = 0
+                    If Color21Bonus = True 
+                        If PlayerSUCardVal(PlayerNo, SplitBase +  0) = 2 or PlayerSUCardVal(PlayerNo, SplitBase +  0) = 4 then C = C + 1
+                        If PlayerSUCardVal(PlayerNo, SplitBase +  1) = 2 or PlayerSUCardVal(PlayerNo, SplitBase +  1) = 4 then C = C + 1
+                        If C = 2 
+                            HandReward(HandNumber) = PlayerNBet(PlayerNo) * 2
+                            IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "BLACKJACK BLACK  WON:" + STR$(PlayerNBet(PlayerNo) * 2)
+                            PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                        Else
+                            C = 0
+                            If PlayerSUCardVal(PlayerNo, SplitBase +  0) = 1 or PlayerSUCardVal(PlayerNo, SplitBase +  0) = 3 then C = C + 1
+                            If PlayerSUCardVal(PlayerNo, SplitBase +  1) = 1 or PlayerSUCardVal(PlayerNo, SplitBase +  1) = 3 then C = C + 1
+                            If C = 2 
+                                HandReward(HandNumber) =PlayerNBet(PlayerNo) * 2
+                                IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "BLACKJACK RED  WON:" + STR$(PlayerNBet(PlayerNo) * 2)
+                                PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                            Else
+                                C = 0
+                            Endif
+                        Endif
+                    Endif
+                    If C = 0 
+                        If Suit21Bonus = True and PlayerSUCardVal(PlayerNo, SplitBase +  0) = PlayerSUCardVal(PlayerNo, SplitBase +  1) 
+                            HandReward(HandNumber) = PlayerNBet(PlayerNo) * 2
+                            IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "SUITED BLACKJACK   WON:" + STR$(PlayerNBet(PlayerNo) * 2)
+                            PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                        Else
+                            HandReward(HandNumber) = PlayerNBet(PlayerNo) * 1.5
+                            IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "BLACKJACK   WON:" + STR$(PlayerNBet(PlayerNo) * 1.5)
+                            PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                        Endif
+                    Endif
+                Endif             
+                If PlayerNDrawn(PlayerNo) = 3            
+                    BonusReward = False            
+                    If Bonus777 = True                                
+                        C  = 0
+                        If PlayerBJCardVal(PlayerNo, SplitBase +  0) = 7 Then C = C + 1
+                        If PlayerBJCardVal(PlayerNo, SplitBase +  1) = 7 Then C = C + 1
+                        If PlayerBJCardVal(PlayerNo, SplitBase +  2) = 7 Then C = C + 1                
+                        If C = 3
+                            If PlayerSUCardVal(PlayerNo, SplitBase +  0) = PlayerSUCardVal(PlayerNo, SplitBase +  1) and PlayerSUCardVal(PlayerNo, SplitBase +  0) = PlayerSUCardVal(PlayerNo, SplitBase +  2) 
+                                IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "21  SUITED 777 BONUS    WON:" + STR$(PlayerNBet(PlayerNo) * 4)
+                                HandReward(HandNumber) =PlayerNBet(PlayerNo) * 4
+                                BonusReward = True
+                                PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                            Else
+                                IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "21  777 BONUS   WON:" + STR$(PlayerNBet(PlayerNo) * 3)
+                                HandReward(HandNumber) = PlayerNBet(PlayerNo) * 3
+                                BonusReward = True
+                                PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                            Endif
+                        Else
+                            If PlayerSUCardVal(PlayerNo, SplitBase +  0) = PlayerSUCardVal(PlayerNo, SplitBase +  1) and PlayerSUCardVal(PlayerNo, SplitBase +  0) = PlayerSUCardVal(PlayerNo, SplitBase +  2) and Suit21Bonus = True and BonusReward = False
+                                IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "SUITED 21 BONUS    WON:" + STR$(PlayerNBet(PlayerNo) * 2)
+                                HandReward(HandNumber) =PlayerNBet(PlayerNo) * 2
+                                BonusReward = True                    
+                                PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                            Endif
+                        Endif                
+                    Endif 
+                    If Bonus678 = True And BonusReward = False
+                        C  = 0
+                        If PlayerBJCardVal(PlayerNo, SplitBase +  0) = 6 or PlayerBJCardVal(PlayerNo, SplitBase +  1)  = 6 or PlayerBJCardVal(PlayerNo, SplitBase +  2)  = 6 Then C = C + 1
+                        If PlayerBJCardVal(PlayerNo, SplitBase +  0) = 7 or PlayerBJCardVal(PlayerNo, SplitBase +  1)  = 7 or PlayerBJCardVal(PlayerNo, SplitBase +  2)  = 7 Then C = C + 1
+                        If PlayerBJCardVal(PlayerNo, SplitBase +  0) = 8 or PlayerBJCardVal(PlayerNo, SplitBase +  1)  = 8 or PlayerBJCardVal(PlayerNo, SplitBase +  2)  = 8 Then C = C + 1
+                        If C = 3 
+                            If PlayerSUCardVal(PlayerNo, SplitBase +  0) = PlayerSUCardVal(PlayerNo, SplitBase +  1) and PlayerSUCardVal(PlayerNo, SplitBase +  0) = PlayerSUCardVal(PlayerNo, SplitBase +  2) 
+                                IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "21  SUITED 678 BONUS   WON:" + STR$(PlayerNBet(PlayerNo) * 4)
+                                HandReward(HandNumber) = PlayerNBet(PlayerNo) * 4
+                                BonusReward = True
+                                PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                            Else  
+                                IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "21  678 BONUS  WON:" + STR$(PlayerNBet(PlayerNo) * 3)
+                                HandReward(HandNumber) = PlayerNBet(PlayerNo) * 3
+                                BonusReward = True
+                                PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                            Endif
+                        Else
+                            If PlayerSUCardVal(PlayerNo, SplitBase +  0) = PlayerSUCardVal(PlayerNo, SplitBase +  1) and PlayerSUCardVal(PlayerNo, SplitBase +  0) = PlayerSUCardVal(PlayerNo, SplitBase +  2) and Suit21Bonus = True and BonusReward = False
+                                IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "SUITED 21 BONUS  WON:" + STR$(PlayerNBet(PlayerNo) * 2)
+                                HandReward(HandNumber) = PlayerNBet(PlayerNo) * 2
+                                BonusReward = True                    
+                                PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                            Endif
+                        Endif
+                    Endif 
+                    If BonusReward = False or PlayerNDrawn(PlayerNo) >=4 
+                        If (HandTotal > PlayerNTotal(0,0) Or PlayerNTotal(0,0) >= 22)  
+                            IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "TOTAL :" + STR$(HandTotal) + "  WON:" + STR$(PlayerNBet(PlayerNo))
+                            HandReward(HandNumber) = PlayerNBet(PlayerNo) 
+                            PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                        Endif
+                        if HandTotal = PlayerNTotal(0,0) 
+                            IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "TOTAL :" + STR$(HandTotal) + "    PUSH"
+                            HandReward(HandNumber) = 0
+                        Endif
+                    Endif            
+                 Endif
+            Else:If HandTotal >= 22 
+               IF HandNumber = 0 then PlayerNMessage(PlayerNo) = STR$(HandTotal) +" BUSTED  LOST:" + STR$(PlayerNBet(PlayerNo))
+                 HandReward(HandNumber) =- PlayerNBet(PlayerNo) 
+            Else:If PlayerNDrawn(PlayerNo) <= -1 
+                IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "SURRENDERED  LOST:" + STR$(int(PlayerNBet(PlayerNo)/2))
+                 HandReward(HandNumber) = - int(PlayerNBet(PlayerNo) / 2)
+            Else:If HandTotal < 22 
+                If PlayerNDrawn(PlayerNo) >= CardCharlieWinSet and PlayerNDrawn(PlayerNo) <= 7
+                    IF HandNumber = 0
+                        If CardCharlieWinSet = 5 then PlayerNMessage(PlayerNo) = "FIVE CARD CHARLIE  WON:" + STR$(PlayerNBet(PlayerNo))
+                        If CardCharlieWinSet = 6 then PlayerNMessage(PlayerNo) = "SIX CARD CHARLIE  WON:" + STR$(PlayerNBet(PlayerNo))
+                    Endif
+                    HandReward(HandNumber) = PlayerNBet(PlayerNo) 
+                    PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                Else
+                    If (HandTotal > PlayerNTotal(0,0) Or PlayerNTotal(0,0) >= 22 or PlayerNDrawn(PlayerNo) >= CardCharlieWinSet)
+                        HandReward(HandNumber) = PlayerNBet(PlayerNo) 
+                        IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "TOTAL:" + STR$(HandTotal) + "   WON:" + STR$(PlayerNBet(PlayerNo))
+                        PlayerNWins(PlayerNo) = PlayerNWins(PlayerNo) + 1
+                    Endif
+                    If HandTotal = PlayerNTotal(0,0) and PlayerNTotal(0,0) < 22                      
+                        If Dealer17TieWins = True and PlayerNTotal(0,0) = 17                     
+                            IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "TIE:" + STR$(HandTotal) + "  LOST:" + STR$(PlayerNBet(PlayerNo))
+                            HandReward(HandNumber) =- PlayerNBet(PlayerNo) 
+                        Else
+                            PlayerNMessage(PlayerNo) = "TOTAL:" + STR$(HandTotal) + "    PUSH"
+                            HandReward(HandNumber) = 0
+                        Endif
+                    Endif                        
+                    If HandTotal < PlayerNTotal(0,0) and PlayerNTotal(0,0) < 22
+                        IF HandNumber = 0 then PlayerNMessage(PlayerNo) = "TOTAL:" + STR$(HandTotal) + "  LOST:" + STR$(PlayerNBet(PlayerNo))
+                        HandReward(HandNumber) =- PlayerNBet(PlayerNo) 
+                    Endif
+                Endif
+            Endif:Endif:Endif:Endif
+            If HandNumber = 1
+                PlayerNMessage(PlayerNo) = "T:" + STR$(PlayerNTotal(PlayerNo,0))
+                If HandReward(0) > 0 then PlayerNMessage(PlayerNo) = PlayerNMessage(PlayerNo) + " W:" + STR$(HandReward(0))
+                If HandReward(0) < 0 then PlayerNMessage(PlayerNo) = PlayerNMessage(PlayerNo) + " L:" + STR$(Abs(HandReward(0)))
+                If HandReward(0) = 0 then PlayerNMessage(PlayerNo) = PlayerNMessage(PlayerNo) + " P"
+                PlayerNMessage(PlayerNo) = PlayerNMessage(PlayerNo) + "|T:" + STR$(PlayerNTotal(PlayerNo,1))
+                If HandReward(1) > 0 then PlayerNMessage(PlayerNo) = PlayerNMessage(PlayerNo) + " W:" + STR$(HandReward(1))
+                If HandReward(1) < 0 then PlayerNMessage(PlayerNo) = PlayerNMessage(PlayerNo) + " L:" + STR$(Abs(HandReward(1)))
+                If HandReward(1) = 0 then PlayerNMessage(PlayerNo) = PlayerNMessage(PlayerNo) + " P"
+            Endif
+            SplitBase = SplitBase + 7
+            Select PlayerNSplit(PlayerNo) 
+                Case 0,1,2,4
+                    HandNumber = 2
+                Endcase
+                Case 3
+                    If HandNumber = 0 
+                        HandNumber = 1
+                    Else
+                        HandNumber = 2
+                    Endif
+                EndCase
+                Case 5
+                    HandNumber = HandNumber + 1
+                EndCase 
+            EndSelect
+        Until HandNumber >=2
+        PlayerNCash(PlayerNumber) = PlayerNCash(PlayerNumber) + HandReward(0) + HandReward(1)
+    Next PlayerNumber
+    // blackjackform.CommandDeal.Visible = True
+    RoundsPlayed = RoundsPlayed + 1
+Endfunction
+
+Function DoSplitDeal()
+    Local N As Integer
+    Local g as Integer
+    local h as Integer
+    local UseImage as Integer
+    local CardSpacing As Integer 
+    CardSpacing = 14
+    If PlayerNSplit(PlayerNo) = 1
+        For N = 7 To 13
+            PlayerBJCardVal(PlayerNo, N) = 0
+            PlayerPKCardVal(PlayerNo, N) = 0
+        Next N
+        If PlayerNo >= 1 and PlayerNo <= 5
+            g = DispPlayerLeft + (PlayerNo - 1) * DispPlayerSpacing + 78 + Int(DispPlayerSpacing * .11) 
+            h = DispPlayerTop + DispPlayerVertical * 0 
+            PlayerBJCardVal(PlayerNo, 7) = PlayerBJCardVal(PlayerNo, 1)        
+            PlayerPKCardVal(PlayerNo, 7) = PKCardValue(CardOrder(CardNo))
+            For N = 1 to 6 
+                PlayerBJCardVal(PlayerNo, N) = 0
+                PlayerPKCardVal(PlayerNo, N) = 0
+            Next N
+            PlayerNDrawn(PlayerNo) = 1
+            N = PlayerNSplitCard(PlayerNo)
+            Sprite N+1, g, h, CardImage(N)        
+            g = DispPlayerLeft + (PlayerNo - 1) * DispPlayerSpacing + 10 + CardSpacing * 1
+            h = DispPlayerTop + DispPlayerVertical * 0 + 12 * 1
+            UseImage = CardImage(CardOrder(CardNo))
+            AnimateHit(CardOrder(CardNo), g, h, UseImage)
+            NewCardValue = BJCardValue(CardOrder(CardNo))
+            PlayerBJCardVal(PlayerNo, 1) = BJCardValue(CardOrder(CardNo))
+            PlayerSUCardVal(PlayerNo, 1) = CardSuitValue(CardOrder(CardNo))                
+            CardNo = CardNo + 1
+            PlayerNDrawn(PlayerNo) = 2
+            PlayerNSplit(PlayerNo) = 2        
+            CalcTotal()
+            g = DispPlayerLeft + (PlayerNo - 1) * DispPlayerSpacing + 78 + Int(DispPlayerSpacing * .11) + CardSpacing * 1
+            h = DispPlayerTop + DispPlayerVertical * 0 + 12 * 1
+            UseImage = CardImage(CardOrder(CardNo))
+            AnimateHit(CardOrder(CardNo), g, h, UseImage)
+            PlayerBJCardVal(PlayerNo, 8) = BJCardValue(CardOrder(CardNo))
+            PlayerSUCardVal(PlayerNo, 8) = CardSuitValue(CardOrder(CardNo))                
+            CardNo = CardNo + 1        
+            PlayerNSplit(PlayerNo) = 3
+            PlayerNDrawn(PlayerNo) = 9
+            CalcTotal()
+            PlayerNMessage(PlayerNo) = Str$(PlayerNTotal(PlayerNo,0)) + "|T:" + STR$(PlayerNTotal(PlayerNo,1))
+        Endif
+        PlayerNSplit(PlayerNo) = 2
+        PlayerNDrawn(PlayerNo) = 2
+        ShowStats()
+     Else
+      If PlayerNSplit(PlayerNo) = 2 or PlayerNSplit(PlayerNo) = 3
+            For N = 14 To 20
+                PlayerBJCardVal(PlayerNo, N) = 0
+            Next N
+            g = DispPlayerLeft + (PlayerNo - 1) * DispPlayerSpacing + 148 + Int(DispPlayerSpacing * .17) 
+            h = DispPlayerTop + DispPlayerVertical * 0 
+            If PlayerNSplit(PlayerNo) = 2
+                PlayerBJCardVal(PlayerNo, 7) = PlayerBJCardVal(PlayerNo, 1)        
+                For N = 1 to 6 
+                    PlayerBJCardVal(PlayerNo, N) = 0
+                Next N
+                PlayerNDrawn(PlayerNo) = 1
+            Endif     
+            If PlayerNSplit(PlayerNo) = 3
+                PlayerBJCardVal(PlayerNo, 14) = PlayerBJCardVal(PlayerNo, 8)        
+                For N = 8 to 13
+                    PlayerBJCardVal(PlayerNo, N) = 0
+                Next N
+                PlayerNDrawn(PlayerNo) = 8
+            Endif   
+      Endif
+     Endif
+Endfunction
+
+Function DoNextHand()    
+    If PlayerNSplit(PlayerNo) = 2 
+        PlayerNSplit(PlayerNo) = 3
+        PlayerNDrawn(PlayerNo) = 9
+    Endif
+    If PlayerNSplit(PlayerNo) = 3 and PlayerBJCardVal(PlayerNo, 14) > 0
+        PlayerNSplit(PlayerNo) = 4
+        PlayerNDrawn(PlayerNo) = 15
+    Endif
+    CalcTotal()
+Endfunction
+
+Function GetBets()    
+    Local PN As Integer
+    Local DN As Integer
+    Local N as Integer
+    Local BetIn as String
+    Local BetOK as Boolean
+    Local BetVal as Float
+    Local ErrorMessage as String
+    Local QuitBoxLeft as Integer 
+    local MX# as Integer
+    local MY# as Integer
+    QuitBoxLeft = Selected_Res_X - 120
+    CLS
+    set text transparent
+    SYNC ON    
+    For PN = 1 To LastPlayer        
+        Clear Entry Buffer        
+        Set Text Font "Times New Roman"
+        set text size 20
+        ErrorMessage = ""
+        Repeat
+            BetOK = False            
+            sync
+            mx#=mousex()
+            my#=mousey()
+            For DN = 1 to LastPlayer
+                ink rgb(240,160,40),rgb(0,0,0)
+                Center Text DispPlayerLeft+84+DispPlayerSpacing*(DN-1), DispPlayerTop + DispPlayerVertical * 6,  "PLAYER : " + STR$(DN)
+                Center Text DispPlayerLeft+84+DispPlayerSpacing*(DN-1), DispPlayerTop + DispPlayerVertical * 7,  "CASH : " + STR$(PlayerNCash(DN))                
+                If PN <> DN                 
+                    Text DispPlayerLeft+12+DispPlayerSpacing*(DN-1),DispPlayerTop + DispPlayerVertical * 8, "BET : " + STR$(PlayerNBet(DN))
+                Endif
+            Next DN            
+            BOX QuitBoxLeft + 2 , 6, QuitBoxLeft + 62 , 31, rgb(200,250,150), rgb(200,250,150), rgb(200,250,150), rgb(200,250,150)
+            BOX QuitBoxLeft + 3 , 7, QuitBoxLeft + 61 , 20, rgb(0,0,32), rgb(0,0,192), rgb(0,0,32), rgb(0,0,192)    
+            BOX QuitBoxLeft + 3 , 20, QuitBoxLeft + 61 , 30, rgb(0,0,192), rgb(0,0,32), rgb(0,0,192), rgb(0,0,32)            
+            ink rgb(240,180,120),rgb(0,0,0)
+            set text size 20
+            Center Text QuitBoxLeft + 40 ,8 , "uit"
+            ink rgb(255,240,255),rgb(0,0,0)
+            set text size 26
+            Center Text QuitBoxLeft + 22 ,4, "Q" 
+            BOX DispPlayerLeft+54+DispPlayerSpacing*(PN-1),DispPlayerTop + DispPlayerVertical * 8,DispPlayerLeft+131+DispPlayerSpacing*(PN-1),DispPlayerTop + DispPlayerVertical * 8 + 22,RGB(255,128,255),RGB(255,128,255),RGB(255,128,255),RGB(255,128,255)
+            BOX DispPlayerLeft+55+DispPlayerSpacing*(PN-1),DispPlayerTop + DispPlayerVertical * 8+1,DispPlayerLeft+130+DispPlayerSpacing*(PN-1),DispPlayerTop + DispPlayerVertical * 8 + 21,RGB(0,64,0),RGB(0,0,0),RGB(0,64,0),RGB(0,0,0)            
+            Set Cursor DispPlayerLeft+50+DispPlayerSpacing*(PN-1),DispPlayerTop + DispPlayerVertical * 10
+            BetIn = ""
+            For N=1 to Len(Entry$(1))
+                If Mid$(Entry$(1),N,1) <> Chr$(13) 
+                    BetIn = BetIn + Mid$(Entry$(1),N)
+                Endif
+            NEXT N            
+            If MX# >= QuitBoxLeft and MX#<= QuitBoxLeft + 62 and MY# >=2 and MY# <=31 and MouseClick() = 1 then BetIn = "Q"
+            BetVal = Val(BetIn)
+            ink rgb(255,224,192),rgb(0,0,0)
+            set text size 20
+            If BetVal > 9 and BetVal<1001 
+                BetOK = True
+                ErrorMessage = ""
+                PlayerNBet(PN) = BetVal
+                ink rgb(255,224,192),rgb(0,0,0)                
+            Else                
+                if Len(BetIn) > 1                  
+                  If BetVal>1000 then ErrorMessage = "The Maximum Bet is 1000."
+                Endif
+                If BetIn <>"" and BetVal=0 and Upper$(BetIn) <> "Q" Then ErrorMessage = "You Must Enter a Number."                 
+                If Upper$(BetIn) = "Q" then ErrorMessage = "Quit? Press Enter to Confirm."
+                if Inkey$()=chr$(13) or (mouseclick() = 1 and Upper$(BetIn) = "Q")
+                    If Upper$(BetIn) = "Q" Then ExitGame = True                    
+                    if (Len(BetIn) =0 or BetVal = 0) then ErrorMessage = "Nothing Entered."
+                    If BetVal>0 and BetVal<10 then ErrorMessage = "The Minimal Bet is 10."
+                Endif                
+                If ErrorMessage <> "" 
+                    BetOK = False
+                    ink rgb(255,64,64),rgb(0,0,0)
+                    Center Text DispPlayerLeft+96+DispPlayerSpacing*(PN-1), DispPlayerTop + DispPlayerVertical * 9,  ErrorMessage 
+                    Set Cursor 20,500
+                Else
+                    ink rgb(255,224,192),rgb(0,0,0)
+                Endif
+            Endif            
+            Text DispPlayerLeft+62+DispPlayerSpacing*(PN-1),DispPlayerTop + DispPlayerVertical * 8, Entry$(1)
+            Text DispPlayerLeft+12+DispPlayerSpacing*(PN-1),DispPlayerTop + DispPlayerVertical * 8, "BET"            
+        Until (Inkey$()=chr$(13) and BetOK = True) or ExitGame = True
+        Repeat
+        Until Inkey$()<>chr$(13) 
+    Next PN
+    SYNC OFF
+Endfunction
+
+Function ShowStats()
+    Local DN As Integer
+    Local DispDealerLeft as integer
+    Set Text Font "Times New Roman"
+    set text size 20
+    set text transparent
+    DispDealerLeft = int(Selected_Res_X * .38) - 64
+    // Text 2, 2,  "CARDNO : " + STR$(CARDNO) + " / " + str$(totalcards)
+    For DN = 0 To LastPlayer        
+        If DN = 0 
+            ink rgb(240,160,40),rgb(0,0,0)
+            Center Text DispDealerLeft, 16,  "DEALER"
+            Center Text DispDealerLeft, 17 + DispPlayerVertical, PlayerNMessage(DN)            
+        Else
+            ink rgb(240,160,40),rgb(0,0,0)
+            Center Text DispPlayerLeft+84+DispPlayerSpacing*(DN-1), DispPlayerTop + DispPlayerVertical * 6,  "PLAYER : " + STR$(DN)
+            Center Text DispPlayerLeft+84+DispPlayerSpacing*(DN-1), DispPlayerTop + DispPlayerVertical * 7,  "CASH : " + STR$(PlayerNCash(DN))
+            Center Text DispPlayerLeft+78+DispPlayerSpacing*(DN-1),DispPlayerTop + DispPlayerVertical * 8, "BET : " + STR$(PlayerNBet(DN))
+            If Len(PlayerNMessage(DN)) < 22
+                Center Text DispPlayerLeft+78+DispPlayerSpacing*(DN-1),DispPlayerTop + DispPlayerVertical * 9, PlayerNMessage(DN)
+            Else
+                Text DispPlayerLeft+DispPlayerSpacing*(DN-1) - DispPlayerLeft + 2,DispPlayerTop + DispPlayerVertical * 9, PlayerNMessage(DN)
+            Endif
+        Endif
+    Next DN
+Endfunction
+
+Function ShowCommands()    
+    Local SplitExtraLeft as Integer
+    Local DN as Integer
+    If PlayerNSplit(PlayerNo) = 3 or PlayerNSplit(PlayerNo) = 4 
+        SplitExtraLeft = 16
+    Else
+        SplitExtraLeft = 0
+    Endif
+    DN = PlayerNo - 1    
+    BOX DispPlayerLeft + SplitExtraLeft  - 2 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 - 8, DispPlayerLeft + SplitExtraLeft  + 225 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 + 26, rgb(128,32,128), rgb(32,192,64), rgb(32,192,64), rgb(128,32,128)
+    BOX DispPlayerLeft + SplitExtraLeft  + 0 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 - 6, DispPlayerLeft + SplitExtraLeft  + 223 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 + 24, rgb(64,0,64), rgb(0,32,0), rgb(0,32,0), rgb(64,0,64)
+    BOX DispPlayerLeft + SplitExtraLeft  + 4 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 - 2, DispPlayerLeft + SplitExtraLeft  + 106 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 + 21, rgb(200,250,150), rgb(200,250,150), rgb(200,250,150), rgb(200,250,150)
+    BOX DispPlayerLeft + SplitExtraLeft  + 5 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 - 1, DispPlayerLeft + SplitExtraLeft  + 105 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 + 10, rgb(0,0,32), rgb(0,0,192), rgb(0,0,32), rgb(0,0,192)
+    BOX DispPlayerLeft + SplitExtraLeft  + 5 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 + 10, DispPlayerLeft + SplitExtraLeft  + 105 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 + 20, rgb(0,0,192), rgb(0,0,32), rgb(0,0,192), rgb(0,0,32)
+    set text size 20
+    ink rgb(240,180,120),rgb(0,0,0)
+    Center Text DispPlayerLeft + SplitExtraLeft  + 68 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10, "IT"
+    set text size 28
+    ink rgb(255,240,255),rgb(0,0,0)    
+    Center Text DispPlayerLeft + SplitExtraLeft  + 48 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 - 3, "H"
+    BOX DispPlayerLeft + SplitExtraLeft  + 117 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 - 2, DispPlayerLeft + SplitExtraLeft  + 218 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 + 21, rgb(200,250,150), rgb(200,250,150), rgb(200,250,150), rgb(200,250,150)
+    BOX DispPlayerLeft + SplitExtraLeft  + 118 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 - 1, DispPlayerLeft + SplitExtraLeft  + 217 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 + 10, rgb(0,0,32), rgb(0,0,192), rgb(0,0,32), rgb(0,0,192)
+    BOX DispPlayerLeft + SplitExtraLeft  + 118 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 + 10, DispPlayerLeft + SplitExtraLeft  + 217 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 10 + 20, rgb(0,0,192), rgb(0,0,32), rgb(0,0,192), rgb(0,0,32)
+    ink rgb(240,180,120),rgb(0,0,0)
+    set text size 20
+    Center Text DispPlayerLeft + SplitExtraLeft  + 180 + DispPlayerSpacing * DN,DispPlayerTop + DispPlayerVertical * 10, "TAND"
+    ink rgb(255,240,255),rgb(0,0,0)
+    set text size 28
+    Center Text DispPlayerLeft + SplitExtraLeft  + 149 + DispPlayerSpacing * DN,DispPlayerTop + DispPlayerVertical * 10 - 4, "S"
+    If PlayerNDoubleUsed(PlayerNo) = 0 
+        BOX DispPlayerLeft + SplitExtraLeft  + 4 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 11 - 2, DispPlayerLeft + SplitExtraLeft  + 106 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 11 + 21, rgb(200,250,150), rgb(200,250,150), rgb(200,250,150), rgb(200,250,150)
+        BOX DispPlayerLeft + SplitExtraLeft  + 5 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 11 - 1, DispPlayerLeft + SplitExtraLeft  + 105 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 11 + 10, rgb(0,0,32), rgb(0,0,192), rgb(0,0,32), rgb(0,0,192)        
+        BOX DispPlayerLeft + SplitExtraLeft  + 5 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 11 + 10, DispPlayerLeft + SplitExtraLeft  + 105 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 11 + 20, rgb(0,0,192), rgb(0,0,32), rgb(0,0,192), rgb(0,0,32)        
+        ink rgb(240,180,120),rgb(0,0,0)
+        set text size 20
+        Center Text DispPlayerLeft + SplitExtraLeft  + 64 + DispPlayerSpacing * DN,DispPlayerTop + DispPlayerVertical * 11, "OUBLE"
+        ink rgb(255,240,255),rgb(0,0,0)
+        set text size 28
+        Center Text DispPlayerLeft + SplitExtraLeft  + 24 + DispPlayerSpacing * DN,DispPlayerTop + DispPlayerVertical * 11 - 4, "D"
+    Endif    
+    If PlayerNSplit(PlayerNo) = 1 and PlayerNDrawn(PlayerNo) <= 2
+        BOX DispPlayerLeft + SplitExtraLeft  + 117 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 11 - 2, DispPlayerLeft + SplitExtraLeft  + 218 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 11 + 21, rgb(200,250,150), rgb(200,250,150), rgb(200,250,150), rgb(200,250,150)
+        BOX DispPlayerLeft + SplitExtraLeft  + 118 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 11 - 1, DispPlayerLeft + SplitExtraLeft  + 217 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 11 + 10, rgb(0,0,32), rgb(0,0,192), rgb(0,0,32), rgb(0,0,192)    
+        BOX DispPlayerLeft + SplitExtraLeft  + 118 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 11 + 10, DispPlayerLeft + SplitExtraLeft  + 217 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 11 + 20, rgb(0,0,192), rgb(0,0,32), rgb(0,0,192), rgb(0,0,32)        
+        ink rgb(240,180,120),rgb(0,0,0)
+        set text size 20
+        Center Text DispPlayerLeft + SplitExtraLeft  + 162 + DispPlayerSpacing * DN,DispPlayerTop + DispPlayerVertical * 11, "SPLI"
+        ink rgb(255,240,255),rgb(0,0,0)
+        set text size 28
+        Center Text DispPlayerLeft + SplitExtraLeft  + 190 + DispPlayerSpacing * DN,DispPlayerTop + DispPlayerVertical * 11 - 4, "T"
+    Endif    
+    If AllowSurrender = True and PlayerNDrawn(PlayerNo) = 2 and PlayerNSplit(PlayerNo) <= 1
+        BOX DispPlayerLeft + SplitExtraLeft  + 4 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 - 2, DispPlayerLeft + SplitExtraLeft  + 140 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 + 21, rgb(200,250,150), rgb(200,250,150), rgb(200,250,150), rgb(200,250,150)
+        BOX DispPlayerLeft + SplitExtraLeft  + 5 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 - 1, DispPlayerLeft + SplitExtraLeft  + 139 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 + 10, rgb(0,0,32), rgb(0,0,192), rgb(0,0,32), rgb(0,0,192)    
+        BOX DispPlayerLeft + SplitExtraLeft  + 5 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 + 10, DispPlayerLeft + SplitExtraLeft  + 139 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 + 20, rgb(0,0,192), rgb(0,0,32), rgb(0,0,192), rgb(0,0,32)        
+        ink rgb(240,180,120),rgb(0,0,0)
+        set text size 20
+        Center Text DispPlayerLeft + SplitExtraLeft  + 72 + DispPlayerSpacing * DN,DispPlayerTop + DispPlayerVertical * 12, "S   RRENDER"
+        ink rgb(255,240,255),rgb(0,0,0)
+        set text size 28
+        Center Text DispPlayerLeft + SplitExtraLeft  + 35 + DispPlayerSpacing * DN,DispPlayerTop + DispPlayerVertical * 12 - 4, "U"        
+    Endif
+    If PlayerNSplit(PlayerNo) = 2 
+        BOX DispPlayerLeft + SplitExtraLeft  + 143 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 - 2, DispPlayerLeft + SplitExtraLeft  + 213 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 + 21, rgb(10,140,140), rgb(100,10,10), rgb(100,10,10), rgb(20,140,140)
+        ink rgb(255,127,191),rgb(0,0,0)
+        set text size 22        
+        Center Text DispPlayerLeft + SplitExtraLeft  + 180 + DispPlayerSpacing * DN,DispPlayerTop + DispPlayerVertical * 12, "Hand 1"
+    Endif        
+    If PlayerNSplit(PlayerNo) = 3
+        BOX DispPlayerLeft + SplitExtraLeft  + 143 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 - 2, DispPlayerLeft + SplitExtraLeft  + 213 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 + 21, rgb(10,140,140), rgb(100,10,10), rgb(100,10,10), rgb(20,140,140)
+        ink rgb(255,127,191),rgb(0,0,0)
+        set text size 22
+        Center Text DispPlayerLeft + SplitExtraLeft  + 180 + DispPlayerSpacing * DN,DispPlayerTop + DispPlayerVertical * 12, "Hand 2"    
+    Endif        
+    If PlayerNSplit(PlayerNo) = 4
+        BOX DispPlayerLeft + SplitExtraLeft  + 143 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 - 2, DispPlayerLeft + SplitExtraLeft  + 213 + DispPlayerSpacing * DN, DispPlayerTop + DispPlayerVertical * 12 + 21, rgb(10,140,140), rgb(100,10,10), rgb(100,10,10), rgb(20,140,140)
+        ink rgb(255,127,191),rgb(0,0,0)
+        set text size 22
+        Center Text DispPlayerLeft + SplitExtraLeft  + 180 + DispPlayerSpacing * DN,DispPlayerTop + DispPlayerVertical * 12, "Hand 3"    
+    Endif        
+Endfunction
+
+Function ShuffleDecks()
+    Local b As Integer
+    Local i As Integer
+    Local j As Integer
+    Local k As Integer
+    Local l As Integer
+    Local n As Integer
+    Local m As Integer
+    Local o As Integer
+    local f as float
+    Local h As Integer
+    local g0 as Integer
+    local g1 as Integer
+    local g2 as Integer
+    Local D$ as String
+    dim oldorder(512) as Integer
+    Sync Off
+    D$ = mid$(GET DATE$(),5) + mid$(GET DATE$(),4) + mid$(GET DATE$(), 2) + mid$(GET DATE$(),8) 
+    j = val(D$)
+    sync off
+    g1 = Selected_Res_Y * .2 + 24
+    f = (Selected_Res_X * 0.6) / TotalCards
+    For i = 0 To TotalCards + JokersPresant
+        CardOrder(i) = -1
+        Sprite i+1, Selected_Res_X * .18 + f * i  , g1 , CardBackImage
+    Next i
+    Randomize -Timer() + j
+    Repeat
+        j = 5 + int(rnd(3)* 2)
+    Until (TotalCards mod j) > 0 and ((TotalCards + 1) mod j) <> 2 and ((TotalCards + 1) mod j) <> 3 and ((TotalCards + 1) mod j) <> 4
+    CardNo = 0
+    For i = 0 To TotalCards + JokersPresant
+        If CardOrder(i) = -1 
+            CardOrder(i) = CardNo 
+            CardNo = (CardNo + j) mod (TotalCards + 1 + JokersPresant)
+        Endif
+    Next i
+    CardNo = 0
+    m = 0
+    For m = 0 to Number_of_Decks
+        for i = 0 to TotalCards            
+            j = Int(Rnd(TotalCards))
+            if i = j then j = Int(Rnd(TotalCards + JokersPresant))
+            if i = j then j = Int(Rnd(TotalCards + JokersPresant))
+            k = CardOrder(j)
+            CardOrder(j) = CardOrder(i)
+            CardOrder(i) = k            
+        next i
+        if m = 1 
+            for i = 0 to TotalCards + JokersPresant
+                oldorder(i) = CardOrder(i)
+            next i    
+        endif
+    Next m
+    Select Number_of_Decks
+        Case 3,4
+            l = 4
+        Endcase            
+        Case 5,6
+            l = 7
+        Endcase            
+        Case 7,8,9
+            l = 10
+        Endcase
+    EndSelect
+    g2 = Selected_Res_Y * .8 
+    g1 = Selected_Res_Y * .6
+    g0 = Selected_Res_Y * .4
+    i = 0 
+    Repeat
+        k = OldOrder(i)
+        j = CardOrder(i)
+        if (i mod l) = 1
+            Sprite k+1, Selected_Res_X * .36 + f * k * .5 , g0 , CardBackImage
+            Sync
+        endif
+        if (i mod l) = 2
+            Sprite k+1, Selected_Res_X * .36 + f * j * .5  , g1 , CardBackImage
+            Sync
+        endif
+        Sprite k+1, Selected_Res_X * .18 + f * j  , g2 , CardBackImage
+        Set Sprite Priority K+1,J+1      
+        i = i + 1
+    Until i > TotalCards + JokersPresant
+    CardNo = 0
+    for i = 0 to  TotalCards + JokersPresant
+       Sprite i+1, -200, -200, CardImage(i)
+    next i
+Endfunction
+
+Function Init_Defaults()
+    CardBackImage = 60
+    LastPlayer = 1
+    DeckSize = 52    
+    Number_Of_Decks = 4
+    DoubleDownSet = 0
+    SplitSet = 0
+    Bonus777  = True
+    Bonus678  = False
+    Dealer17TieWins  = False
+    DealerSoft17Hit = False
+    CardCharlieWinSet = 6
+    Suit21Bonus  = False    
+    Color21Bonus  = False    
+    DoubleDown3Up = False           
+    AllowSurrender = False
+Endfunction
+
+Function DoSettings()    
+   DIM DispModes$(128) as string         
+   Local A as Integer
+   Local B as Integer
+   Local C as Integer
+   Local I as Integer
+   Local J as Integer
+   Local K as Integer   
+   Local L as Integer   
+   Local N as Integer   
+   Local ButtonUp as Boolean
+   Local Selected_Mode As Integer
+   local MX# as Integer
+   local MY# as Integer
+   Set Window Off
+   set display mode 1024,768,32
+   Selected_BitDepth=32
+   EMPTY CHECKLIST
+   PERFORM CHECKLIST FOR DISPLAY MODES
+    A = 1
+    N = 1
+    B = CHECKLIST VALUE C(1)
+    REPEAT 
+        IF CHECKLIST VALUE C(N) = B AND CHECKLIST VALUE A(N)>799
+            MODE_RES_X(A) = CHECKLIST VALUE A(N)
+            MODE_RES_Y(A) = CHECKLIST VALUE B(N)        
+            IF MODE_RES_X(A) = 800 and MODE_RES_Y(A) = 600 and Selected_Mode <=1
+                Selected_Mode = A
+                Selected_Res_X = MODE_RES_X(A)
+                Selected_Res_Y = MODE_RES_Y(A)
+            ENDIF            
+            A = A + 1
+        ENDIF
+        N = N + 1
+    UNTIL CHECKLIST VALUE C(N) <> B
+    Possible_Modes = A 
+    A = 1
+    B = CHECKLIST VALUE C(1)
+    MODE_BITDEPTH(1) = B
+    FOR N=1 TO CHECKLIST QUANTITY() 
+        IF CHECKLIST VALUE C(N) <> B 
+            A = A + 1    
+            B = CHECKLIST VALUE C(N)
+            MODE_BITDEPTH(A) = B
+        ENDIF
+    NEXT N
+//   set window on
+   repeat
+      Reset_title = 0
+      cls   
+      Show_Modes = 0
+      ink rgb(255,96,32),0
+      c = 24
+      BOX 3,84,510,121,rgb(32,0,16),rgb(0,0,0),rgb(112,32,32),rgb(32,0,16)
+      BOX 510,84,1020,121,rgb(112,32,32),rgb(32,0,16),rgb(32,0,16),rgb(0,0,0)
+
+      //for a=1 to 35
+      //   ink rgb(c,c/4+2,C/4+2),0
+      //   line 3,a+84,1020,a+84
+      //   C=C+2
+      //next a
+      ink rgb(128,16,96),0
+      a = 36
+      line 3,121,1020,121
+      C = 70      
+      BOX 3,120,510,158,rgb(0,0,0),rgb(16,16,16),rgb(2,2,2),rgb(72,72,72)
+      BOX 510,120,1020,158,rgb(2,2,2),rgb(72,72,72),rgb(0,0,0),rgb(16,16,16)
+      //for a=37 to 71
+      //   ink rgb(C,C,C),0
+      //   line 3,a+84,1020,a+84
+      //   C=C-2
+      //next a
+      ink rgb(128,96,255),rgb(160,80,40)
+      Set Text Font "Times New Roman"
+      set text size 60
+      center text 512,82, "B L A C K J A C K     I N     T H E     D A R K"
+      ink rgb(120,64,240),rgb(160,80,40)
+      set text size 20
+      center text 512,128,"A Game by Peter J. Meyer"
+      set text size 18
+      ink rgb(255,32,96),rgb(0,0,0)
+      text 2,128,"FINAL BETA"
+      set text size 16
+      Set Text Font "Courier New"
+      ink rgb(255,96,64),rgb(160,80,40)
+      watchfornohover = 0
+      SET CURSOR 10,200
+      ink rgb(255,96,64),rgb(160,80,40)
+      repeat
+        if mouseclick()=0 then ButtonUp = True        
+         hovering = 0
+         selecting = 0
+         mx#=mousex()
+         my#=mousey()
+         if mx#>10 and mx#<90 and my#>680 and my#<700
+            hovering=1
+            if mouseclick()=1
+               selecting = 1
+               Show_Modes = 1
+            endif
+         endif
+         if mx#>860 and mx#<940 and my#>680 and my#<700
+            hovering=2
+            if mouseclick()=1 then selecting=2
+         endif
+         if mx#>860 and mx#<940 and my#>660 and my#<680
+            hovering=4
+            if mouseclick()=1
+               selecting=3
+               Reset_title = 0
+            endif
+         endif
+         if mx#>140 and mx#<260 and my#>500 and my#<520
+             If mouseclick()=1 
+                DeckSize = 48
+             Endif
+         Endif
+         if mx#>140 and mx#<260 and my#>520 and my#<540
+             If mouseclick()=1 
+                DeckSize = 52
+             Endif
+         Endif
+//         if mx#>140 and mx#<260 and my#>540 and my#<560
+//             If mouseclick()=1 
+//                DeckSize = 56
+//             Endif
+//         Endif
+         if mx#>140 and mx#<260 and my#>640 and my#<660
+             If mouseclick()=1 
+                Number_of_Decks = 4
+             Endif
+         Endif
+         if mx#>140 and mx#<260 and my#>660 and my#<680
+             If mouseclick()=1 
+                Number_of_Decks = 6
+             Endif
+         Endif
+         if mx#>140 and mx#<260 and my#>680 and my#<700
+             If mouseclick()=1 
+                Number_of_Decks = 8
+             Endif
+         Endif
+        j = 540
+        if mx#>290 and mx#<560 and my# > j and my# < j+20
+             If mouseclick()=1 and ButtonUp = True
+                ButtonUp = False
+                Bonus777 = 1 - Bonus777 
+             Endif
+         Endif
+         j = j + 20
+         if mx#>290 and mx#<560 and my# > j and my# < j+20
+             If mouseclick()=1  and ButtonUp = True
+                ButtonUp = False
+                Bonus678 = 1 - Bonus678                
+             Endif
+         Endif
+         j = j + 20
+         if mx#>290 and mx#<560 and my# > j and my# < j+20
+             If mouseclick()=1  and ButtonUp = True
+                ButtonUp = False
+                Dealer17TieWins = 1 - Dealer17TieWins
+             Endif
+         Endif
+         j = j + 20
+         if mx#>290 and mx#<560 and my# > j and my# < j+20
+             If mouseclick()=1  and ButtonUp = True
+                ButtonUp = False
+                DealerSoft17Hit = 1 - DealerSoft17Hit
+             Endif
+         Endif
+         j = j + 20
+        if mx#>290 and mx#<560 and my# > j and my# < j+20
+             If mouseclick()=1  and ButtonUp = True
+                ButtonUp = False
+                If CardCharlieWinSet = 6 
+                    CardCharlieWinSet = 5
+                Else
+                    CardCharlieWinSet = 6
+                Endif
+             Endif
+         Endif    
+         j = j + 20            
+        if mx#>290 and mx#<560 and my# > j and my# < j+20
+             If mouseclick()=1  and ButtonUp = True
+                ButtonUp = False
+                Suit21Bonus = 1 - Suit21Bonus
+                Color21Bonus = False
+             Endif
+         Endif    
+         j = j + 20            
+        if mx#>290 and mx#<560 and my# > j and my# < j+20
+             If mouseclick()=1  and ButtonUp = True
+                ButtonUp = False
+                Color21Bonus = 1 - Color21Bonus
+                Suit21Bonus = False
+             Endif
+         Endif    
+         j = j + 20            
+        if mx#>290 and mx#<560 and my# > j and my# < j+20
+             If mouseclick()=1 and ButtonUp = True
+                ButtonUp = False
+                AllowSurrender = 1 - AllowSurrender
+             Endif
+         Endif                
+        if mx#>600 and mx#<800 and my#>500 and my#<520
+             If mouseclick() = 1
+                DoubleDownSet = 0
+             Endif
+         Endif
+         if mx#>600 and mx#<800 and my#>520 and my#<540
+             If mouseclick() = 1
+                DoubleDownSet = 1
+                DoubleDown3Up = False
+             Endif
+         Endif
+         if mx#>600 and mx#<800 and my#>540 and my#<560
+             If mouseclick() = 1
+                DoubleDownSet = 2
+                DoubleDown3Up = False
+             Endif
+         Endif
+         if mx#>600 and mx#<800 and my#>560 and my#<580
+             If mouseclick() = 1 and ButtonUp = True and DoubleDownSet = 0
+                DoubleDown3Up = 1 - DoubleDown3Up
+                ButtonUp = False
+             Endif
+         Endif
+         if SplitSet >= 3 then SplitSet = 0
+         if mx#>600 and mx#<800 and my#>640 and my#<660
+             If mouseclick() = 1
+                SplitSet = 0
+             Endif
+         Endif
+         if mx#>600 and mx#<800 and my#>660 and my#<680
+             If mouseclick() = 1
+                SplitSet = 1
+             Endif
+         Endif
+         if mx#>600 and mx#<800 and my#>680 and my#<700
+             If mouseclick() = 1
+                SplitSet = 2
+             Endif
+         Endif
+
+         if mx#>850 and mx#<950 and my#>500 and my#<520
+             If mouseclick() = 1
+                LastPlayer = 1
+             Endif
+         Endif
+         if mx#>850 and mx#<950 and my#>520 and my#<540
+             If mouseclick() = 1
+                LastPlayer = 2
+             Endif
+         Endif
+         if mx#>850 and mx#<950 and my#>540 and my#<560
+             If mouseclick() = 1
+                LastPlayer = 3
+             Endif
+         Endif
+         if mx#>850 and mx#<950 and my#>560 and my#<580 and Selected_Res_X > 1111 
+             If mouseclick() = 1
+                LastPlayer = 4
+             Endif
+         Endif
+
+         if Show_Modes = 1
+            ink rgb(64,16,16),rgb(0,0,0)            
+            Box 2, 679-POSSIBLE_MODES * 20, 128, 701
+            ink rgb(128,64,64),rgb(0,0,0)
+            Line 2, 679-POSSIBLE_MODES * 20, 128, 679-POSSIBLE_MODES * 20
+            Line 2, 679-POSSIBLE_MODES * 20, 2, 701
+            Line 128, 679-POSSIBLE_MODES * 20, 128, 701
+            Line 2, 701, 128, 701
+            Line 2, 660, 128, 660
+            Line 2, 680, 128, 680
+            ink rgb(240,160,40),rgb(0,0,0)
+            if mx#>5 and mx#<99 and my#>659-POSSIBLE_MODES * 20  and my#<660
+               hovering = ((my# -(660 - POSSIBLE_MODES * 20)) / 20)
+               if mouseclick()=1
+                  watchfornohover=1
+                  Selected_Mode = hovering 
+                  Selected_Res_X = MODE_RES_X(hovering)
+                  Selected_Res_Y = MODE_RES_Y(hovering)
+               endif
+            endif
+            if mx#>5 and mx#<99 and my#>659 and my#<680
+               hovering=4
+               if mouseclick()=1
+                  if mx#<=56
+                     Selected_BitDepth=16
+                  else
+                     Selected_BitDepth=32
+                  endif
+                  selecting=7
+                  watchfornohover=1
+               endif
+            endif
+            FOR N = 1 TO Possible_Modes
+                if (hovering = 9 + N) or (N = Possible_Modes and Hovering = 4) 
+
+                Else
+
+                Endif
+                IF N < Possible_Modes
+                    center text 66, 660 - Possible_Modes*20+N*20, "x"
+                    center text 37, 660 - Possible_Modes*20+N*20, STR$(MODE_RES_X(N))
+                    center text 93, 660 - Possible_Modes*20+N*20, STR$(MODE_RES_Y(N))
+                ELSE
+                    center text 35, 660,"16 Bit"
+                    center text 93, 660,"32 Bit"    
+                ENDIF
+            NEXT N
+            ink rgb(255,255,127),rgb(160,80,40)
+            center text 65,660 - Possible_Modes*20 + 20 * Selected_Mode,"[           ]"
+            center text -23 + 3.6 * Selected_BitDepth,660,"[      ]"
+            // center text 108,360,"640 x 480"
+            // center text 108,380,"800 x 600"
+            // center text 108,400,"1024 x 768"
+         Else
+            ink rgb(0,0,0),rgb(0,0,0)
+            Box 2, 679-POSSIBLE_MODES * 20, 120, 701            
+         Endif
+         IF DeckSize = 48 
+            J = 498
+         Endif
+         If DeckSize = 52
+            J = 518
+         Endif
+//         If DeckSize = 56
+//            J = 538
+//         Endif
+         ink rgb(0,0,0),rgb(0,0,0)
+         Box 139,495,261,705
+         Box 278,495,561,705
+         Box 599,495,801,705
+         Box 839,495,961,605
+         Box 139,J,261,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+         Box 140,J+1,260,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+         Box 140,J+9,260,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         J = (Number_of_Decks - 4) * 10 + 640
+         Box 139,J,261,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+         Box 140,J+1,260,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+         Box 140,J+9,260,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         j=538
+         IF Bonus777 = True             
+             Box 279,J,561,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+             Box 280,J+1,560,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+             Box 280,J+9,560,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         Endif
+         j = j + 20
+         IF Bonus678 = True
+             Box 279,J,561,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+             Box 280,J+1,560,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+             Box 280,J+9,560,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         Endif
+         j = j + 20
+         IF Dealer17TieWins = True
+             j = 578
+             Box 279,J,561,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+             Box 280,J+1,560,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+             Box 280,J+9,560,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         Endif
+         j = j + 20
+         IF DealerSoft17Hit = True
+             Box 279,J,561,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+             Box 280,J+1,560,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+             Box 280,J+9,560,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         Endif
+         j = j + 20
+         IF CardCharlieWinSet = 5
+             Box 279,J,561,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+             Box 280,J+1,560,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+             Box 280,J+9,560,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         Endif
+         j = j + 20
+         IF Suit21Bonus = True
+             Box 279,J,561,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+             Box 280,J+1,560,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+             Box 280,J+9,560,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         Endif
+         j = j + 20
+         IF Color21Bonus = True
+             Box 279,J,561,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+             Box 280,J+1,560,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+             Box 280,J+9,560,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         Endif
+         j = j + 20
+         IF AllowSurrender = True
+             Box 279,J,561,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+             Box 280,J+1,560,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+             Box 280,J+9,560,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         Endif
+         j = 558
+         IF DoubleDown3Up = True
+             Box 599,J,801,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+             Box 600,J+1,800,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+             Box 600,J+9,800,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         Endif
+         j = 498 + DoubleDownSet * 20
+         Box 599,J,801,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+         Box 600,J+1,800,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+         Box 600,J+9,800,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         j = 638 + SplitSet * 20
+         Box 599,J,801,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+         Box 600,J+1,800,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+         Box 600,J+9,800,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         j = 478 + LastPlayer * 20
+         If J < 498 then J = 498
+         Box 839,J,961,J+19,rgb(120,16,16),rgb(120,16,16),rgb(120,16,16),rgb(120,16,16)
+         Box 840,J+1,960,J+9,rgb(0,0,36),rgb(72,16,16),rgb(0,0,36),rgb(72,16,16)
+         Box 840,J+9,960,J+18,rgb(72,16,16),rgb(0,0,36),rgb(72,16,16),rgb(0,0,36)
+         if hovering=0
+            if watchfornohover=1
+               watchfornohover=0
+               Reset_title=1
+            endif
+         endif
+         ink rgb(240,160,40),rgb(0,0,0)         
+         center text 50,680,"SCREEN MODE"
+         // center text 200,320,"CARD BACK IMAGE"
+         center text 200,500,"48 CARD DECKS"
+         center text 200,520,"52 CARD DECKS"
+         // center text 200,540,"56 CARD DECKS"
+         center text 200,640,"FOUR DECKS" 
+         center text 200,660,"SIX DECKS" 
+         center text 200,680,"EIGHT DECKS"
+         // center text 425,500,"ANY 777 PAYS 3 TO 1"
+         j=540
+         center text 425,j,"BONUS 777 PAYS 3 TO 1, SUIT 4 TO 1 "
+         j=j+20
+         center text 425,j,"BONUS 678 PAYS 3 TO 1, SUIT 4 TO 1 "
+         // center text 425,520,"SUIT 777 PAYS 4 TO 1"
+         // center text 425,540,"ANY 678 PAYS 3 TO 1" 
+         // center text 425,560,"SUIT 678 PAYS 4 TO 1" 
+         j=j+20
+         center text 425,j,"DEALER 17 TIE WINS"
+         j=j+20
+         center text 425,j,"DEALER HITS SOFT 17"
+         j=j+20
+         center text 425,j,"UNBUSTED 5 CARD WIN"
+         j=j+20
+         center text 425,j,"SUIT BLACKJACK 2 TO 1"
+         j=j+20
+         center text 425,j,"SAME COLOR BLACKJACK 2 TO 1"
+         j=j+20
+         center text 425,j,"ALLOW PLAYER SURRENDER"         
+         j=j+20
+         center text 700,500,"DOUBLE DOWN ANY TOTAL"
+         center text 700,520,"DOUBLE DOWN 10 OR 11"
+         center text 700,540,"DOUBLE DOWN 9, 10, OR 11"
+         center text 700,560,"DOUBLE DOWN UPTO 3 CARDS"
+         center text 700,640,"SPLIT ANY PAIR"
+         center text 700,660,"SPLIT EXACT PAIR"
+         center text 700,680,"NO SPLIT ACES"                
+         center text 900,500,"ONE PLAYER"
+         center text 900,520,"TWO PLAYERS"
+         center text 900,540,"THREE PLAYERS"         
+         center text 900,660,"EXIT"
+         center text 900,680,"BEGIN GAME"         
+         if Selected_Res_X > 1111
+            center text 900,560,"FOUR PLAYERS"         
+         else
+            ink rgb(120,80,20),rgb(0,0,0)
+            center text 900,560,"FOUR PLAYERS"         
+         endif
+      until selecting=2 or selecting=3 or Reset_title=1
+   until selecting=2 or selecting=3
+   rem get image 255,0,0,640,480
+   rem save image "title screen shot.bmp",255
+   cls
+   if selecting = 3 then End_Program = True
+EndFunction
